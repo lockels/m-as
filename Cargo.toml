@@ -1,0 +1,10 @@
+[package]
+name = "møas"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+ratatui = { version = "0.29.0", features = ["all-widgets"] }
+sysinfo = "*"
+crossterm = "0.9"
+color-eyre = "0.6"
