@@ -11,14 +11,16 @@ use crate::cpu::CpuInfo;
 pub fn main() -> Result<()> {
     color_eyre::install()?;
     let terminal = ratatui::init();
-    let result = run(terminal);
+    let mut cpu_info = CpuInfo::new();
+    let result = run(terminal, &mut cpu_info);
     ratatui::restore();
     result
 }
 
-pub fn run(mut terminal: DefaultTerminal) -> Result<()> {
+pub fn run(mut terminal: DefaultTerminal, cpu_info: &mut CpuInfo) -> Result<()> {
     loop {
-        terminal.draw(render)?;
+        cpu_info.update();
+        terminal.draw(|f| render(f, cpu_info))?;
         if matches!(event::read()?, Event::Key(_)) {
             break Ok(());
         }
@@ -29,12 +31,12 @@ fn render(frame: &mut Frame, cpu_info: &CpuInfo) {
     let main_layout = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Ratio(1, 4), // Top 25% for CPU
-            Constraint::Ratio(3, 4), // Bottom 75% (will be empty for now)
+            Constraint::Percentage(30), // Top 30% for CPU
+            Constraint::Percentage(70), // Bottom 70% (will be empty for now)
         ])
         .split(frame.area());
 
-    render_cpu_section(frame, cpu_info, main_layout[1]);
+    render_cpu_section(frame, cpu_info, main_layout[0]);
 
     let bottom_section = Block::default().borders(Borders::ALL);
 
@@ -42,7 +44,7 @@ fn render(frame: &mut Frame, cpu_info: &CpuInfo) {
 }
 
 fn render_cpu_section(frame: &mut Frame, cpu_info: &CpuInfo, area: Rect) {
-    let cpu_section = Block::default()
+    let cpu_block = Block::default()
         .title("CPU usage")
         .borders(Borders::ALL)
         .border_type(BorderType::Rounded)
@@ -51,10 +53,12 @@ fn render_cpu_section(frame: &mut Frame, cpu_info: &CpuInfo, area: Rect) {
 
     let cpu_layout = Layout::default()
         .direction(Direction::Horizontal)
-        .constraints([Constraint::Percentage(30), Constraint::Percentage(70)])
+        .constraints([Constraint::Percentage(20), Constraint::Percentage(80)])
         .split(area);
 
     render_cpu_cores_list(frame, cpu_info, cpu_layout[0]);
+
+    frame.render_widget(cpu_block, area);
 }
 
 fn render_cpu_cores_list(frame: &mut Frame, cpu_info: &CpuInfo, area: Rect) {
@@ -74,11 +78,24 @@ fn render_cpu_cores_list(frame: &mut Frame, cpu_info: &CpuInfo, area: Rect) {
         })
         .collect();
 
+    let centered_layout = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([
+            Constraint::Min(0),     // Left padding
+            Constraint::Length(20), // Content width
+            Constraint::Min(0),     // Right padding
+        ])
+        .split(area);
+
     let list_widget = Paragraph::new(cores_list)
-        .block(Block::default().style(Style::default().bg(Color::Black)))
+        .block(Block::default())
         .alignment(Alignment::Left);
 
-    frame.render_widget(list_widget, area);
+    frame.render_widget(list_widget, centered_layout[1]);
+}
+
+pub fn render_cpu_graphs(frame: &mut Frame, cpu_info: &CpuInfo, area: Rect) {
+    todo!()
 }
 
 const CORE_COLORS: &[Color] = &[

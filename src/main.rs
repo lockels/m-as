@@ -14,6 +14,6 @@ pub fn main() -> Result<()> {
     // for process in processes.iter().take(20) {
     //     // Show top 20 by CPU
     //     println!("{}", process);
-    cpu::main();
+    // cpu::main();
     tui::main()
 }
