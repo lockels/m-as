@@ -78,25 +78,34 @@ fn render_cpu_cores_list(frame: &mut Frame, cpu_info: &CpuInfo, area: Rect) {
         })
         .collect();
 
-    let centered_layout = Layout::default()
-        .direction(Direction::Horizontal)
+    // Vertical centering
+    let vertical_layout = Layout::default()
+        .direction(Direction::Vertical)
         .constraints([
-            Constraint::Min(0),     // Left padding
-            Constraint::Length(20), // Content width
-            Constraint::Min(0),     // Right padding
+            Constraint::Min(1),
+            Constraint::Length(cores_list.len() as u16),
+            Constraint::Min(1),
         ])
         .split(area);
+
+    // Horizontal centering
+    let horizontal_layout = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([
+            Constraint::Min(1),
+            Constraint::Length(20),
+            Constraint::Min(1),
+        ])
+        .split(vertical_layout[1]);
 
     let list_widget = Paragraph::new(cores_list)
         .block(Block::default())
         .alignment(Alignment::Left);
 
-    frame.render_widget(list_widget, centered_layout[1]);
+    frame.render_widget(list_widget, horizontal_layout[1]);
 }
 
-pub fn render_cpu_graphs(frame: &mut Frame, cpu_info: &CpuInfo, area: Rect) {
-    todo!()
-}
+pub fn _render_cpu_graphs(_frame: &mut Frame, _cpu_info: &CpuInfo, _area: Rect) {}
 
 const CORE_COLORS: &[Color] = &[
     Color::Red,
