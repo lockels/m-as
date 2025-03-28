@@ -1,9 +1,10 @@
 use color_eyre::Result;
-use ratatui::crossterm::event::{self, Event};
+use ratatui::crossterm::event::{self, Event, KeyCode};
 use ratatui::layout::{Alignment, Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
+use ratatui::symbols::Marker;
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, BorderType, Borders, Paragraph};
+use ratatui::widgets::{Axis, Block, BorderType, Borders, Chart, Dataset, GraphType, Paragraph};
 use ratatui::{DefaultTerminal, Frame};
 
 use crate::cpu::CpuInfo;
@@ -19,10 +20,19 @@ pub fn main() -> Result<()> {
 
 pub fn run(mut terminal: DefaultTerminal, cpu_info: &mut CpuInfo) -> Result<()> {
     loop {
+        // Update CPU info first
         cpu_info.update();
+
+        // Draw the UI
         terminal.draw(|f| render(f, cpu_info))?;
-        if matches!(event::read()?, Event::Key(_)) {
-            break Ok(());
+
+        // Handle input with timeout to allow for refresh
+        if event::poll(std::time::Duration::from_millis(250))? {
+            if let Event::Key(key) = event::read()? {
+                if key.code == KeyCode::Char('q') {
+                    break Ok(());
+                }
+            }
         }
     }
 }
@@ -57,6 +67,7 @@ fn render_cpu_section(frame: &mut Frame, cpu_info: &CpuInfo, area: Rect) {
         .split(area);
 
     render_cpu_cores_list(frame, cpu_info, cpu_layout[0]);
+    render_cpu_graphs(frame, cpu_info, cpu_layout[1]);
 
     frame.render_widget(cpu_block, area);
 }
@@ -105,7 +116,76 @@ fn render_cpu_cores_list(frame: &mut Frame, cpu_info: &CpuInfo, area: Rect) {
     frame.render_widget(list_widget, horizontal_layout[1]);
 }
 
-pub fn _render_cpu_graphs(_frame: &mut Frame, _cpu_info: &CpuInfo, _area: Rect) {}
+fn render_cpu_graphs(frame: &mut Frame, cpu_info: &CpuInfo, area: Rect) {
+    // First collect all the graph data
+    let core_data: Vec<(String, Vec<(f64, f64)>, Color)> = cpu_info
+        .cores
+        .iter()
+        .enumerate()
+        .map(|(i, core)| {
+            let data = core.history
+                .iter()
+                .enumerate()
+                .map(|(x, &y)| (x as f64, y as f64))
+                .collect();
+            (core.name.clone(), data, CORE_COLORS[i % CORE_COLORS.len()])
+        })
+        .collect();
+
+    // Create the chart widget
+    let chart = {
+        let y_max = 30.0; // Your adjusted scale
+        let datasets = core_data
+            .iter()
+            .map(|(name, data, color)| {
+                Dataset::default()
+                    .name(name.as_str())
+                    .data(data)
+                    .graph_type(GraphType::Line)
+                    .style(Style::default().fg(*color))
+                    .marker(Marker::Braille)
+            })
+            .collect();
+
+        Chart::new(datasets)
+            .block(Block::default().title("CPU Usage History (0-30%)"))
+            .x_axis(
+                Axis::default()
+                    .bounds([0.0, 59.0])
+                    .labels::<Vec<Span>>(vec![Span::raw("0"), Span::raw("30"), Span::raw("60")]),
+            )
+            .y_axis(
+                Axis::default()
+                    .bounds([0.0, y_max])
+                    .labels::<Vec<Span>>(vec![
+                        Span::raw("0"),
+                        Span::raw(format!("{:.0}", y_max/2.0)),
+                        Span::raw(format!("{:.0}", y_max))
+                    ]),
+            )
+    };
+
+    // Center the chart vertically and horizontally
+    let vertical_layout = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Min(1),  // Top padding
+            Constraint::Length(10),  // Chart height
+            Constraint::Min(1),  // Bottom padding
+        ])
+        .split(area);
+
+    let horizontal_layout = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([
+            Constraint::Min(1),  // Left padding
+            Constraint::Percentage(90),  // Chart width
+            Constraint::Min(1),  // Right padding
+        ])
+        .split(vertical_layout[1]);
+
+    frame.render_widget(chart, horizontal_layout[1]);
+}
 
 const CORE_COLORS: &[Color] = &[
     Color::Red,

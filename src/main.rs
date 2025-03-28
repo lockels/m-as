@@ -1,6 +1,5 @@
 mod cpu;
 mod process;
-
 mod tui;
 use color_eyre::Result;
 

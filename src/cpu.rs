@@ -1,7 +1,7 @@
-use ratatui::style::Color;
 use std::collections::VecDeque;
 use sysinfo::System;
 
+#[allow(dead_code)]
 pub fn main() {
     let mut cpu_info = CpuInfo::new();
 
@@ -39,22 +39,6 @@ pub struct CpuInfo {
     pub cores: Vec<CpuCore>,
     pub history: VecDeque<f32>, // Global CPU history
 }
-
-const CORE_COLORS: &[Color] = &[
-    Color::Red,
-    Color::Green,
-    Color::Yellow,
-    Color::Blue,
-    Color::Magenta,
-    Color::Cyan,
-    Color::Gray,
-    Color::LightRed,
-    Color::LightGreen,
-    Color::LightYellow,
-    Color::LightBlue,
-    Color::LightMagenta,
-    Color::LightCyan,
-];
 
 impl CpuInfo {
     /// Create a new CpuInfo struct with default value
@@ -103,17 +87,13 @@ impl CpuInfo {
         }
     }
 
-    pub fn core_graph_data(&self, core_index: usize) -> Option<Vec<(f64, f64)>> {
-        self.cores.get(core_index).map(|core| {
+    pub fn _core_graph_data(&self, _core_index: usize) -> Option<Vec<(f64, f64)>> {
+        self.cores.get(_core_index).map(|core| {
             core.history
                 .iter()
                 .enumerate()
                 .map(|(i, &usage)| (i as f64, usage as f64))
                 .collect()
         })
-    }
-
-    pub fn core_color(&self, index: usize) -> Color {
-        CORE_COLORS.get(index).copied().unwrap_or(Color::White)
     }
 }
