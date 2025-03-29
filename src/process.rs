@@ -1,14 +1,27 @@
 use std::fmt;
 use sysinfo::{Pid, ProcessStatus, System};
 
+pub fn main() {
+    let mut processes = get_all_processes();
+    sort_by_memory(&mut processes);
+
+    println!("=== SYSTEM PROCESSES ===");
+    println!("{}", "-".repeat(100));
+
+    for process in processes.iter().take(20) {
+        // Show top 20 by CPU
+        println!("{}", process);
+    }
+}
+
 #[derive(Debug)]
 pub struct Process {
-    pid: Pid,
-    name: String,
-    cpu_usage: f32,
-    memory_mb: f64,
-    status: ProcessStatus,
-    parent_pid: Option<Pid>,
+    pub pid: Pid,
+    pub name: String,
+    pub cpu_usage: f32,
+    pub memory_mb: f64,
+    pub status: ProcessStatus,
+    pub parent_pid: Option<Pid>,
 }
 
 impl fmt::Display for Process {
