@@ -4,7 +4,7 @@ mod tui;
 use color_eyre::Result;
 
 pub fn main() -> Result<()> {
-    process::main();
+    // process::main();
     // cpu::main();
     tui::main()
 }

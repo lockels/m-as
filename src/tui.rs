@@ -1,5 +1,7 @@
-use std::cmp;
+use std::time::{Duration, Instant};
 
+use crate::cpu::CpuInfo;
+use crate::process::{self, get_all_processes, Process};
 use color_eyre::Result;
 use ratatui::crossterm::event::{self, Event, KeyCode};
 use ratatui::layout::{Alignment, Constraint, Direction, Layout, Rect};
@@ -7,19 +9,25 @@ use ratatui::style::{Color, Modifier, Style};
 use ratatui::symbols::Marker;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{
-    Axis, Block, BorderType, Borders, Cell, Chart, Dataset, GraphType, List, ListItem, ListState,
-    Paragraph, Row, Table,
+    Axis, Block, BorderType, Borders, Cell, Chart, Dataset, GraphType, Paragraph, Row, Table,
+    TableState,
 };
 use ratatui::{DefaultTerminal, Frame};
+use std::sync::{Arc, Mutex};
+use std::thread;
 use sysinfo::ProcessStatus;
 
-use crate::cpu::CpuInfo;
-use crate::process::{self, get_all_processes, Process};
+const fn make_highlight_style() -> Style {
+    Style::new()
+        .bg(Color::Rgb(70, 70, 90))
+        .fg(Color::White)
+        .add_modifier(Modifier::BOLD)
+}
 
 pub struct AppState {
     pub cpu_info: CpuInfo,
     pub processes: Vec<Process>,
-    pub process_list_state: ListState,
+    pub selected_process: usize,
     pub scroll_offset: usize,
 }
 
@@ -31,7 +39,7 @@ impl AppState {
         Self {
             cpu_info: CpuInfo::new(),
             processes,
-            process_list_state: ListState::default(),
+            selected_process: 0,
             scroll_offset: 0,
         }
     }
@@ -45,35 +53,83 @@ impl AppState {
 pub fn main() -> Result<()> {
     color_eyre::install()?;
     let terminal = ratatui::init();
-    let mut state = AppState::new();
-    let result = run(terminal, &mut state);
+    let result = run(terminal);
     ratatui::restore();
     result
 }
 
-pub fn run(mut terminal: DefaultTerminal, state: &mut AppState) -> Result<()> {
+pub fn run(mut terminal: DefaultTerminal) -> Result<()> {
+    // Shared state between threads
+    let state = Arc::new(Mutex::new(AppState::new()));
+
+    // Clone Arc for background thread
+    let state_thread = Arc::clone(&state);
+
+    // Spawn background thread for data updates
+    thread::spawn(move || {
+        let mut last_cpu_update = Instant::now();
+        let cpu_update_interval = Duration::from_millis(1000);
+
+        loop {
+            let now = Instant::now();
+
+            // Update processes more frequently (250ms)
+            {
+                let mut state = state_thread.lock().unwrap();
+                state.update_processes();
+            }
+
+            // Update CPU less frequently (1s) since it's more expensive
+            if now.duration_since(last_cpu_update) >= cpu_update_interval {
+                let mut state = state_thread.lock().unwrap();
+                state.cpu_info.update();
+                last_cpu_update = now;
+            }
+
+            thread::sleep(Duration::from_millis(50)); // Small sleep to prevent busy-wait
+        }
+    });
+
+    // Main thread handles only UI and input
+    let mut visible_height = terminal.size()?.height as usize - 4;
     loop {
-        state.cpu_info.update();
-        state.update_processes();
-
-        terminal.draw(|f| render(f, state))?;
-
-        if event::poll(std::time::Duration::from_millis(250))? {
+        // Non-blocking event processing
+        while event::poll(Duration::from_millis(0))? {
             if let Event::Key(key) = event::read()? {
                 match key.code {
-                    KeyCode::Char('q') => break Ok(()),
+                    KeyCode::Char('q') => return Ok(()),
                     KeyCode::Down | KeyCode::Char('j') => {
-                        state.scroll_offset = state.scroll_offset.saturating_add(1);
-                        let max_offset = state.processes.len().saturating_sub(1);
-                        state.scroll_offset = cmp::min(state.scroll_offset, max_offset);
+                        let mut state = state.lock().unwrap();
+                        if state.selected_process < state.processes.len().saturating_sub(1) {
+                            state.selected_process += 1;
+                        }
+                        if state.selected_process >= state.scroll_offset + visible_height {
+                            state.scroll_offset = state.selected_process - visible_height + 1;
+                        }
                     }
                     KeyCode::Up | KeyCode::Char('k') => {
-                        state.scroll_offset = state.scroll_offset.saturating_sub(1);
+                        let mut state = state.lock().unwrap();
+                        if state.selected_process > 0 {
+                            state.selected_process -= 1;
+                        }
+                        if state.selected_process < state.scroll_offset {
+                            state.scroll_offset = state.selected_process;
+                        }
                     }
                     _ => {}
                 }
             }
         }
+
+        // Smooth rendering at 60fps
+        terminal.draw(|f| {
+            visible_height = f.area().height as usize - 4;
+            let state = state.lock().unwrap();
+            render(f, &state)
+        })?;
+
+        // Small sleep to prevent 100% CPU usage on UI thread
+        thread::sleep(Duration::from_millis(16)); // ~60fps
     }
 }
 
@@ -87,11 +143,13 @@ fn render(frame: &mut Frame, state: &AppState) {
         .split(frame.area());
 
     render_cpu_section(frame, &state.cpu_info, main_layout[0]);
-    render_process_section(frame, &state.processes, state.scroll_offset, main_layout[1]);
-
-    // let bottom_section = Block::default().borders(Borders::ALL);
-    //
-    // frame.render_widget(bottom_section, main_layout[1]);
+    render_process_section(
+        frame,
+        &state.processes,
+        state.selected_process,
+        state.scroll_offset,
+        main_layout[1],
+    );
 }
 
 fn render_cpu_section(frame: &mut Frame, cpu_info: &CpuInfo, area: Rect) {
@@ -249,6 +307,7 @@ const CORE_COLORS: &[Color] = &[
 fn render_process_section(
     frame: &mut Frame,
     processes: &[Process],
+    selected_process: usize,
     scroll_offset: usize,
     area: Rect,
 ) {
@@ -259,7 +318,15 @@ fn render_process_section(
         .border_style(Style::default().fg(Color::LightMagenta));
 
     let inner_area = block.inner(area);
-    let max_items = inner_area.height as usize - 2; // Keep your original calculation
+    let max_items = inner_area.height as usize - 2; // Account for header and border
+    let scroll_offset = scroll_offset.min(processes.len().saturating_sub(max_items));
+    let mut adjusted_scroll = scroll_offset;
+
+    if selected_process < adjusted_scroll {
+        adjusted_scroll = selected_process;
+    } else if selected_process >= adjusted_scroll + max_items {
+        adjusted_scroll = selected_process - max_items + 1;
+    }
 
     // Define column constraints
     let widths = [
@@ -314,9 +381,18 @@ fn render_process_section(
     // Create table rows
     let rows = processes
         .iter()
-        .skip(scroll_offset)
+        .enumerate()
+        .skip(adjusted_scroll)
         .take(max_items)
-        .map(|process| {
+        .map(|(i, process)| {
+            let is_selected = i == selected_process;
+
+            let style = if is_selected {
+                make_highlight_style()
+            } else {
+                Style::default()
+            };
+
             let status_str = match process.status {
                 ProcessStatus::Run => "Running",
                 ProcessStatus::Sleep => "Sleeping",
@@ -358,6 +434,7 @@ fn render_process_section(
                     Style::default().fg(Color::Magenta),
                 )),
             ])
+            .style(style)
         });
 
     let table = Table::new(rows.collect::<Vec<_>>(), widths)
@@ -365,8 +442,19 @@ fn render_process_section(
         .block(block)
         .widths(&widths)
         .column_spacing(2)
-        .row_highlight_style(Style::default().add_modifier(Modifier::REVERSED))
+        .row_highlight_style(make_highlight_style()) // Use your custom style here
         .highlight_symbol(">> ");
 
-    frame.render_widget(table, area);
+    let selected_position =
+        if selected_process >= adjusted_scroll && selected_process < adjusted_scroll + max_items {
+            Some(selected_process - adjusted_scroll)
+        } else {
+            None
+        };
+
+    frame.render_stateful_widget(
+        table,
+        area,
+        &mut TableState::default().with_selected(selected_position),
+    );
 }

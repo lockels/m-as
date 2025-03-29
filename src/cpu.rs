@@ -36,14 +36,14 @@ impl CpuCore {
 pub struct CpuInfo {
     pub global_usage: f32,
     pub cores: Vec<CpuCore>,
-    pub history: VecDeque<f32>, // Global CPU history
-    system: System,             // Keep the System instance as part of the struct
+    pub history: VecDeque<f32>,
+    system: System,
 }
 
 impl CpuInfo {
     /// Create a new CpuInfo struct with default value
     pub fn new() -> Self {
-        let mut system = System::new_all();
+        let system = System::new_all();
         // Wait a bit to get accurate initial readings
         std::thread::sleep(std::time::Duration::from_millis(500));
 
@@ -66,9 +66,6 @@ impl CpuInfo {
     pub fn update(&mut self) {
         // Refresh CPU information
         self.system.refresh_cpu_all();
-
-        // Need to wait a bit between refreshes to get accurate CPU usage
-        std::thread::sleep(std::time::Duration::from_millis(500));
 
         // Update global usage
         self.global_usage = self.system.global_cpu_usage();
