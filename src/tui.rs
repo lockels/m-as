@@ -41,8 +41,8 @@ fn render(frame: &mut Frame, cpu_info: &CpuInfo) {
     let main_layout = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Percentage(30), // Top 30% for CPU
-            Constraint::Percentage(70), // Bottom 70% (will be empty for now)
+            Constraint::Percentage(40), // Top 40% for CPU
+            Constraint::Percentage(60), // Bottom 60% (will be empty for now)
         ])
         .split(frame.area());
 
@@ -123,7 +123,8 @@ fn render_cpu_graphs(frame: &mut Frame, cpu_info: &CpuInfo, area: Rect) {
         .iter()
         .enumerate()
         .map(|(i, core)| {
-            let data = core.history
+            let data = core
+                .history
                 .iter()
                 .enumerate()
                 .map(|(x, &y)| (x as f64, y as f64))
@@ -134,7 +135,8 @@ fn render_cpu_graphs(frame: &mut Frame, cpu_info: &CpuInfo, area: Rect) {
 
     // Create the chart widget
     let chart = {
-        let y_max = 30.0; // Your adjusted scale
+        let y_min = 0.0;
+        let y_max = 30.0;
         let datasets = core_data
             .iter()
             .map(|(name, data, color)| {
@@ -156,11 +158,11 @@ fn render_cpu_graphs(frame: &mut Frame, cpu_info: &CpuInfo, area: Rect) {
             )
             .y_axis(
                 Axis::default()
-                    .bounds([0.0, y_max])
+                    .bounds([y_min, y_max])
                     .labels::<Vec<Span>>(vec![
                         Span::raw("0"),
-                        Span::raw(format!("{:.0}", y_max/2.0)),
-                        Span::raw(format!("{:.0}", y_max))
+                        Span::raw(format!("{:.0}", y_max / 2.0)),
+                        Span::raw(format!("{:.0}", y_max)),
                     ]),
             )
     };
@@ -169,18 +171,18 @@ fn render_cpu_graphs(frame: &mut Frame, cpu_info: &CpuInfo, area: Rect) {
     let vertical_layout = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Min(1),  // Top padding
-            Constraint::Length(10),  // Chart height
-            Constraint::Min(1),  // Bottom padding
+            Constraint::Min(1),     // Top padding
+            Constraint::Length(10), // Chart height
+            Constraint::Min(1),     // Bottom padding
         ])
         .split(area);
 
     let horizontal_layout = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([
-            Constraint::Min(1),  // Left padding
-            Constraint::Percentage(90),  // Chart width
-            Constraint::Min(1),  // Right padding
+            Constraint::Min(1),         // Left padding
+            Constraint::Percentage(90), // Chart width
+            Constraint::Min(1),         // Right padding
         ])
         .split(vertical_layout[1]);
 

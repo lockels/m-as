@@ -32,19 +32,20 @@ impl CpuCore {
     }
 }
 
-// Add this struct to hold overall CPU information
 #[derive(Debug)]
 pub struct CpuInfo {
     pub global_usage: f32,
     pub cores: Vec<CpuCore>,
     pub history: VecDeque<f32>, // Global CPU history
+    system: System,             // Keep the System instance as part of the struct
 }
 
 impl CpuInfo {
     /// Create a new CpuInfo struct with default value
     pub fn new() -> Self {
-        let mut system = System::new();
-        system.refresh_cpu_all();
+        let mut system = System::new_all();
+        // Wait a bit to get accurate initial readings
+        std::thread::sleep(std::time::Duration::from_millis(500));
 
         let cores = system
             .cpus()
@@ -57,26 +58,27 @@ impl CpuInfo {
             global_usage: 0.0,
             cores,
             history: VecDeque::with_capacity(60),
+            system,
         }
     }
 
     /// Update the CPU information
     pub fn update(&mut self) {
-        let mut system = System::new();
-        //
+        // Refresh CPU information
+        self.system.refresh_cpu_all();
+
         // Need to wait a bit between refreshes to get accurate CPU usage
-        std::thread::sleep(std::time::Duration::from_millis(250));
-        system.refresh_cpu_all();
+        std::thread::sleep(std::time::Duration::from_millis(500));
 
         // Update global usage
-        self.global_usage = system.global_cpu_usage();
+        self.global_usage = self.system.global_cpu_usage();
         self.history.push_back(self.global_usage);
         if self.history.len() > 60 {
             self.history.pop_front();
         }
 
-        // Update each cores usage
-        for (i, cpu) in system.cpus().iter().enumerate() {
+        // Update each core's usage
+        for (i, cpu) in self.system.cpus().iter().enumerate() {
             if let Some(core) = self.cores.get_mut(i) {
                 core.usage = cpu.cpu_usage();
                 core.history.push_back(core.usage);
