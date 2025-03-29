@@ -7,8 +7,8 @@ use ratatui::style::{Color, Modifier, Style};
 use ratatui::symbols::Marker;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{
-    Axis, Block, BorderType, Borders, Chart, Dataset, GraphType, List, ListItem, ListState,
-    Paragraph,
+    Axis, Block, BorderType, Borders, Cell, Chart, Dataset, GraphType, List, ListItem, ListState,
+    Paragraph, Row, Table,
 };
 use ratatui::{DefaultTerminal, Frame};
 use sysinfo::ProcessStatus;
@@ -259,60 +259,60 @@ fn render_process_section(
         .border_style(Style::default().fg(Color::LightMagenta));
 
     let inner_area = block.inner(area);
-    let max_items = inner_area.height as usize - 2; // -2 for borders kek
+    let max_items = inner_area.height as usize - 2; // Keep your original calculation
 
-    // Max lengths for each column
-    const PID_WIDTH: usize = 6;
-    const NAME_WIDTH: usize = 15;
-    const CPU_WIDTH: usize = 5;
-    const MEM_WIDTH: usize = 6;
-    const STATUS_WIDTH: usize = 8;
-    const PARENT_WIDTH: usize = 6;
+    // Define column constraints
+    let widths = [
+        Constraint::Length(6),  // PID
+        Constraint::Length(15), // Name
+        Constraint::Length(6),  // CPU%
+        Constraint::Length(8),  // Memory
+        Constraint::Length(8),  // Status
+        Constraint::Length(6),  // Parent
+    ];
 
-    // Create header with exact spacing
-    let header = Line::from(vec![
-        Span::styled(
-            format!("{:>PID_WIDTH$}", "PID"),
+    // Create header row
+    let header = Row::new(vec![
+        Cell::from(Span::styled(
+            "PID",
             Style::default()
                 .fg(Color::Yellow)
                 .add_modifier(Modifier::BOLD),
-        ),
-        Span::raw("  "),
-        Span::styled(
-            format!("{:<NAME_WIDTH$}", "NAME"),
+        )),
+        Cell::from(Span::styled(
+            "NAME",
             Style::default()
                 .fg(Color::Green)
                 .add_modifier(Modifier::BOLD),
-        ),
-        Span::raw("  "),
-        Span::styled(
-            format!("{:>CPU_WIDTH$}", "CPU%"),
+        )),
+        Cell::from(Span::styled(
+            "CPU%",
             Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
-        ),
-        Span::raw("  "),
-        Span::styled(
-            format!("{:>MEM_WIDTH$}", "MEM"),
+        )),
+        Cell::from(Span::styled(
+            "MEMORY",
             Style::default()
                 .fg(Color::Blue)
                 .add_modifier(Modifier::BOLD),
-        ),
-        Span::raw("  "),
-        Span::styled(
-            format!("{:<STATUS_WIDTH$}", "STATUS"),
+        )),
+        Cell::from(Span::styled(
+            "STATUS",
             Style::default()
                 .fg(Color::Cyan)
                 .add_modifier(Modifier::BOLD),
-        ),
-        Span::raw("  "),
-        Span::styled(
-            format!("{:<PARENT_WIDTH$}", "PARENT"),
+        )),
+        Cell::from(Span::styled(
+            "PARENT",
             Style::default()
                 .fg(Color::Magenta)
                 .add_modifier(Modifier::BOLD),
-        ),
-    ]);
+        )),
+    ])
+    .height(1)
+    .bottom_margin(1);
 
-    let items: Vec<ListItem> = processes
+    // Create table rows
+    let rows = processes
         .iter()
         .skip(scroll_offset)
         .take(max_items)
@@ -331,53 +331,42 @@ fn render_process_section(
                 .parent_pid
                 .map_or("None".to_string(), |pid| pid.to_string());
 
-            // Truncate strings that are too long
-            let name = if process.name.len() > NAME_WIDTH {
-                format!("{}...", &process.name[..NAME_WIDTH.saturating_sub(3)])
+            // Truncate name if needed
+            let name = if process.name.len() > 15 {
+                format!("{}...", &process.name[..12])
             } else {
                 process.name.clone()
             };
 
-            let line = Line::from(vec![
-                Span::styled(
-                    format!("{:>PID_WIDTH$}", process.pid),
+            Row::new(vec![
+                Cell::from(Span::styled(
+                    process.pid.to_string(),
                     Style::default().fg(Color::Yellow),
-                ),
-                Span::raw("  "),
-                Span::styled(
-                    format!("{:<NAME_WIDTH$}", name),
-                    Style::default().fg(Color::Green),
-                ),
-                Span::raw("  "),
-                Span::styled(
-                    format!("{:>CPU_WIDTH$.1}%", process.cpu_usage),
+                )),
+                Cell::from(Span::styled(name, Style::default().fg(Color::Green))),
+                Cell::from(Span::styled(
+                    format!("{:.1}%", process.cpu_usage),
                     Style::default().fg(Color::Red),
-                ),
-                Span::raw("  "),
-                Span::styled(
-                    format!("{:>MEM_WIDTH$.2}MB", process.memory_mb),
+                )),
+                Cell::from(Span::styled(
+                    format!("{:.2}MB", process.memory_mb),
                     Style::default().fg(Color::Blue),
-                ),
-                Span::raw("  "),
-                Span::styled(
-                    format!("{:<STATUS_WIDTH$}", status_str),
-                    Style::default().fg(Color::Cyan),
-                ),
-                Span::raw("  "),
-                Span::styled(
-                    format!("{:<PARENT_WIDTH$}", parent_str),
+                )),
+                Cell::from(Span::styled(status_str, Style::default().fg(Color::Cyan))),
+                Cell::from(Span::styled(
+                    parent_str,
                     Style::default().fg(Color::Magenta),
-                ),
-            ]);
+                )),
+            ])
+        });
 
-            ListItem::new(line)
-        })
-        .collect();
-
-    let list = List::new(items)
+    let table = Table::new(rows.collect::<Vec<_>>(), widths)
+        .header(header)
         .block(block)
-        .highlight_style(Style::default().add_modifier(Modifier::REVERSED))
+        .widths(&widths)
+        .column_spacing(2)
+        .row_highlight_style(Style::default().add_modifier(Modifier::REVERSED))
         .highlight_symbol(">> ");
 
-    frame.render_widget(list, area);
+    frame.render_widget(table, area);
 }
