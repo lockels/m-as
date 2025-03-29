@@ -138,23 +138,43 @@ fn render(frame: &mut Frame, state: &AppState) {
         .direction(Direction::Vertical)
         .constraints([
             Constraint::Percentage(40), // Top 40% for CPU
-            Constraint::Percentage(60), // Bottom 60% (empty for now)
+            Constraint::Percentage(60), // Bottom 60% for processes, etc.
         ])
         .split(frame.area());
 
     render_cpu_section(frame, &state.cpu_info, main_layout[0]);
+
+    let bottom_layout = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([
+            Constraint::Percentage(50), // Left 50% for processes
+            Constraint::Percentage(50), // Right 50% for other info
+        ])
+        .split(main_layout[1]);
+
     render_process_section(
         frame,
         &state.processes,
         state.selected_process,
         state.scroll_offset,
-        main_layout[1],
+        bottom_layout[0],
     );
+
+    let right_side_layout = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Percentage(50), // Top 50% for memory
+            Constraint::Percentage(50), // Bottom 50% for disk
+        ])
+        .split(bottom_layout[1]);
+
+    render_memory_section(frame, right_side_layout[0]);
+    render_disk_section(frame, right_side_layout[1]);
 }
 
 fn render_cpu_section(frame: &mut Frame, cpu_info: &CpuInfo, area: Rect) {
     let cpu_block = Block::default()
-        .title("CPU usage")
+        .title("CPU Usage")
         .borders(Borders::ALL)
         .border_type(BorderType::Rounded)
         .border_style(Style::default().fg(Color::LightCyan))
@@ -457,4 +477,24 @@ fn render_process_section(
         area,
         &mut TableState::default().with_selected(selected_position),
     );
+}
+
+fn render_memory_section(frame: &mut Frame, area: Rect) {
+    let block = Block::default()
+        .title(" Memory Usage ")
+        .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
+        .border_style(Style::default().fg(Color::LightYellow));
+
+    frame.render_widget(block, area);
+}
+
+fn render_disk_section(frame: &mut Frame, area: Rect) {
+    let block = Block::default()
+        .title(" Disk Usage ")
+        .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
+        .border_style(Style::default().fg(Color::LightBlue));
+
+    frame.render_widget(block, area);
 }
