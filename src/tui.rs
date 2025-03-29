@@ -20,10 +20,7 @@ pub fn main() -> Result<()> {
 
 pub fn run(mut terminal: DefaultTerminal, cpu_info: &mut CpuInfo) -> Result<()> {
     loop {
-        // Update CPU info first
         cpu_info.update();
-
-        // Draw the UI
         terminal.draw(|f| render(f, cpu_info))?;
 
         // Handle input with timeout to allow for refresh
@@ -42,7 +39,7 @@ fn render(frame: &mut Frame, cpu_info: &CpuInfo) {
         .direction(Direction::Vertical)
         .constraints([
             Constraint::Percentage(40), // Top 40% for CPU
-            Constraint::Percentage(60), // Bottom 60% (will be empty for now)
+            Constraint::Percentage(60), // Bottom 60% (empty for now)
         ])
         .split(frame.area());
 
@@ -136,7 +133,7 @@ fn render_cpu_graphs(frame: &mut Frame, cpu_info: &CpuInfo, area: Rect) {
     // Create the chart widget
     let chart = {
         let y_min = 0.0;
-        let y_max = 30.0;
+        let y_max = 50.0;
         let datasets = core_data
             .iter()
             .map(|(name, data, color)| {
@@ -150,7 +147,7 @@ fn render_cpu_graphs(frame: &mut Frame, cpu_info: &CpuInfo, area: Rect) {
             .collect();
 
         Chart::new(datasets)
-            .block(Block::default().title("CPU Usage History (0-30%)"))
+            .block(Block::default().title("CPU Usage History (0-50%)"))
             .x_axis(
                 Axis::default()
                     .bounds([0.0, 59.0])
@@ -172,7 +169,7 @@ fn render_cpu_graphs(frame: &mut Frame, cpu_info: &CpuInfo, area: Rect) {
         .direction(Direction::Vertical)
         .constraints([
             Constraint::Min(1),     // Top padding
-            Constraint::Length(10), // Chart height
+            Constraint::Length(12), // Increased chart height from 10 to 12
             Constraint::Min(1),     // Bottom padding
         ])
         .split(area);
