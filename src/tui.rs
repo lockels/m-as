@@ -1,6 +1,7 @@
 use std::time::{Duration, Instant};
 
 use crate::cpu::CpuInfo;
+use crate::memory::MemoryInfo;
 use crate::process::{self, get_all_processes, Process};
 use color_eyre::Result;
 use ratatui::crossterm::event::{self, Event, KeyCode};
@@ -26,6 +27,7 @@ const fn make_highlight_style() -> Style {
 
 pub struct AppState {
     pub cpu_info: CpuInfo,
+    pub memory_info: MemoryInfo,
     pub processes: Vec<Process>,
     pub selected_process: usize,
     pub scroll_offset: usize,
@@ -38,6 +40,7 @@ impl AppState {
 
         Self {
             cpu_info: CpuInfo::new(),
+            memory_info: MemoryInfo::new(),
             processes,
             selected_process: 0,
             scroll_offset: 0,
@@ -73,9 +76,10 @@ pub fn run(mut terminal: DefaultTerminal) -> Result<()> {
         loop {
             let now = Instant::now();
 
-            // Update processes more frequently (250ms)
+            // Update system information frequently (250ms)
             {
                 let mut state = state_thread.lock().unwrap();
+                state.memory_info.update();
                 state.update_processes();
             }
 
@@ -164,12 +168,12 @@ fn render(frame: &mut Frame, state: &AppState) {
         .direction(Direction::Vertical)
         .constraints([
             Constraint::Percentage(50), // Top 50% for memory
-            Constraint::Percentage(50), // Bottom 50% for disk
+            Constraint::Percentage(50), // Bottom 50% for network
         ])
         .split(bottom_layout[1]);
 
-    render_memory_section(frame, right_side_layout[0]);
-    render_disk_section(frame, right_side_layout[1]);
+    render_memory_section(frame, &state.memory_info, right_side_layout[0]);
+    render_network_section(frame, right_side_layout[1]);
 }
 
 fn render_cpu_section(frame: &mut Frame, cpu_info: &CpuInfo, area: Rect) {
@@ -479,22 +483,101 @@ fn render_process_section(
     );
 }
 
-fn render_memory_section(frame: &mut Frame, area: Rect) {
+fn render_memory_section(frame: &mut Frame, memory_info: &MemoryInfo, area: Rect) {
     let block = Block::default()
         .title(" Memory Usage ")
         .borders(Borders::ALL)
         .border_type(BorderType::Rounded)
-        .border_style(Style::default().fg(Color::LightYellow));
+        .border_style(Style::default().fg(Color::Yellow));
 
+    // Create layout with left padding
+    let inner_layout = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([
+            Constraint::Length(4), // Left padding
+            Constraint::Min(1),    // Content area
+        ])
+        .split(block.inner(area));
+
+    // Render the text content with proper padding
+    render_memory_usage(frame, memory_info, inner_layout[1]);
+
+    // Render the outer block
     frame.render_widget(block, area);
 }
 
-fn render_disk_section(frame: &mut Frame, area: Rect) {
+fn render_memory_usage(frame: &mut Frame, memory_info: &MemoryInfo, area: Rect) {
+    let memory_percent = memory_info.current_memory_percent();
+    let swap_percent = memory_info.current_swap_percent();
+
+    // Text with empty line between Memory and Swap
+    let text = vec![
+        Line::from(vec![
+            Span::styled("Memory: ", Style::default().fg(Color::LightBlue)),
+            Span::styled(
+                format!("{:.1}%", memory_percent),
+                Style::default()
+                    .fg(Color::LightBlue)
+                    .add_modifier(Modifier::BOLD),
+            ),
+        ]),
+        Line::from(""),
+        Line::from(vec![
+            Span::styled("Swap: ", Style::default().fg(Color::LightRed)),
+            Span::styled(
+                if memory_info.total_swap > 0 {
+                    format!("{:.1}%", swap_percent)
+                } else {
+                    "N/A".to_string()
+                },
+                Style::default()
+                    .fg(Color::LightRed)
+                    .add_modifier(Modifier::BOLD),
+            ),
+        ]),
+    ];
+
+    // Center vertically
+    let vertical_layout = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Percentage(30), // Top padding
+            Constraint::Length(3),      // Text content (3 lines)
+            Constraint::Percentage(30), // Bottom padding
+        ])
+        .split(area);
+
+    let paragraph = Paragraph::new(text).alignment(Alignment::Left);
+
+    frame.render_widget(paragraph, vertical_layout[1]);
+}
+
+fn render_network_section(frame: &mut Frame, area: Rect) {
     let block = Block::default()
-        .title(" Disk Usage ")
+        .title("Network Usage ")
         .borders(Borders::ALL)
         .border_type(BorderType::Rounded)
         .border_style(Style::default().fg(Color::LightBlue));
 
     frame.render_widget(block, area);
+}
+
+fn center_rect(width: u16, height: u16, area: Rect) -> Rect {
+    let vertical = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Percentage((100 - height) / 2),
+            Constraint::Length(height),
+            Constraint::Percentage((100 - height) / 2),
+        ])
+        .split(area);
+
+    Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([
+            Constraint::Percentage((100 - width) / 2),
+            Constraint::Length(width),
+            Constraint::Percentage((100 - width) / 2),
+        ])
+        .split(vertical[1])[1]
 }
