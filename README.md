@@ -9,3 +9,5 @@ First iteration preview in my terminal:D
 
 I used the crate sysinfo for retrieving and parsing system information.
 I also used the (really cool) crate ratatui for the tui:)
+
+Build from source by cloning this repo and running ``cargo build --release``
