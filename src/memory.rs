@@ -15,13 +15,12 @@ pub struct MemoryInfo {
     pub swap_history: VecDeque<f32>,
 }
 
+#[allow(dead_code)]
 pub fn main() {
     let memory_info = MemoryInfo::new();
 
     println!("{}", memory_info.memory_usage_text());
     println!("{}", memory_info.swap_usage_text());
-
-    loop {}
 }
 
 impl MemoryInfo {
@@ -73,7 +72,7 @@ impl MemoryInfo {
         }
     }
 
-    pub fn memory_graph_data(&self) -> Vec<(f64, f64)> {
+    pub fn _memory_graph_data(&self) -> Vec<(f64, f64)> {
         self.memory_history
             .iter()
             .enumerate()
@@ -81,7 +80,7 @@ impl MemoryInfo {
             .collect()
     }
 
-    pub fn swap_graph_data(&self) -> Vec<(f64, f64)> {
+    pub fn _swap_graph_data(&self) -> Vec<(f64, f64)> {
         self.swap_history
             .iter()
             .enumerate()

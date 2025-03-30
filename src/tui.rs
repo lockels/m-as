@@ -18,6 +18,22 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use sysinfo::ProcessStatus;
 
+const CORE_COLORS: &[Color] = &[
+    Color::Red,
+    Color::Green,
+    Color::Yellow,
+    Color::Blue,
+    Color::Magenta,
+    Color::Cyan,
+    Color::Gray,
+    Color::LightRed,
+    Color::LightGreen,
+    Color::LightYellow,
+    Color::LightBlue,
+    Color::LightMagenta,
+    Color::LightCyan,
+];
+
 const fn make_highlight_style() -> Style {
     Style::new()
         .bg(Color::Rgb(70, 70, 90))
@@ -64,8 +80,6 @@ pub fn main() -> Result<()> {
 pub fn run(mut terminal: DefaultTerminal) -> Result<()> {
     // Shared state between threads
     let state = Arc::new(Mutex::new(AppState::new()));
-
-    // Clone Arc for background thread
     let state_thread = Arc::clone(&state);
 
     // Spawn background thread for data updates
@@ -240,8 +254,7 @@ fn render_cpu_cores_list(frame: &mut Frame, cpu_info: &CpuInfo, area: Rect) {
 }
 
 fn render_cpu_graphs(frame: &mut Frame, cpu_info: &CpuInfo, area: Rect) {
-    // First collect all the graph data
-    let core_data: Vec<(String, Vec<(f64, f64)>, Color)> = cpu_info
+    let graph_data: Vec<(String, Vec<(f64, f64)>, Color)> = cpu_info
         .cores
         .iter()
         .enumerate()
@@ -256,11 +269,11 @@ fn render_cpu_graphs(frame: &mut Frame, cpu_info: &CpuInfo, area: Rect) {
         })
         .collect();
 
-    // Create the chart widget
+    // Chart widget
     let chart = {
         let y_min = 0.0;
         let y_max = 50.0;
-        let datasets = core_data
+        let datasets = graph_data
             .iter()
             .map(|(name, data, color)| {
                 Dataset::default()
@@ -290,7 +303,7 @@ fn render_cpu_graphs(frame: &mut Frame, cpu_info: &CpuInfo, area: Rect) {
             )
     };
 
-    // Center the chart vertically and horizontally
+    // Center the chart vertically
     let vertical_layout = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
@@ -300,6 +313,7 @@ fn render_cpu_graphs(frame: &mut Frame, cpu_info: &CpuInfo, area: Rect) {
         ])
         .split(area);
 
+    // Center the chart horizontally
     let horizontal_layout = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([
@@ -311,22 +325,6 @@ fn render_cpu_graphs(frame: &mut Frame, cpu_info: &CpuInfo, area: Rect) {
 
     frame.render_widget(chart, horizontal_layout[1]);
 }
-
-const CORE_COLORS: &[Color] = &[
-    Color::Red,
-    Color::Green,
-    Color::Yellow,
-    Color::Blue,
-    Color::Magenta,
-    Color::Cyan,
-    Color::Gray,
-    Color::LightRed,
-    Color::LightGreen,
-    Color::LightYellow,
-    Color::LightBlue,
-    Color::LightMagenta,
-    Color::LightCyan,
-];
 
 fn render_process_section(
     frame: &mut Frame,
@@ -464,7 +462,7 @@ fn render_process_section(
     let table = Table::new(rows.collect::<Vec<_>>(), widths)
         .header(header)
         .block(block)
-        .widths(&widths)
+        .widths(widths)
         .column_spacing(2)
         .row_highlight_style(make_highlight_style()) // Use your custom style here
         .highlight_symbol(">> ");
@@ -560,24 +558,4 @@ fn render_network_section(frame: &mut Frame, area: Rect) {
         .border_style(Style::default().fg(Color::LightBlue));
 
     frame.render_widget(block, area);
-}
-
-fn center_rect(width: u16, height: u16, area: Rect) -> Rect {
-    let vertical = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Percentage((100 - height) / 2),
-            Constraint::Length(height),
-            Constraint::Percentage((100 - height) / 2),
-        ])
-        .split(area);
-
-    Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([
-            Constraint::Percentage((100 - width) / 2),
-            Constraint::Length(width),
-            Constraint::Percentage((100 - width) / 2),
-        ])
-        .split(vertical[1])[1]
 }

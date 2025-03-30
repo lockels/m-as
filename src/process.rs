@@ -1,6 +1,7 @@
 use std::fmt;
 use sysinfo::{Pid, ProcessStatus, System};
 
+#[allow(dead_code)]
 pub fn main() {
     let mut processes = get_all_processes();
     sort_by_memory(&mut processes);
@@ -74,7 +75,7 @@ pub fn get_all_processes() -> Vec<Process> {
 
 // == Functions for sorting processes ==
 
-pub fn sort_by_cpu(processes: &mut [Process]) {
+pub fn _sort_by_cpu(processes: &mut [Process]) {
     processes.sort_by(|a, b| b.cpu_usage.partial_cmp(&a.cpu_usage).unwrap());
 }
 

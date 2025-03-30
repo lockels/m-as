@@ -11,3 +11,9 @@ pub struct NetworkMonitor {
     last_tx: u64,
     max_bandwidth: u64,
 }
+
+impl NetworkMonitor {
+    pub fn new() -> Self {
+        todo!()
+    }
+}

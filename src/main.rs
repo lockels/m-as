@@ -1,6 +1,6 @@
 mod cpu;
 mod memory;
-mod network;
+// mod network;
 mod process;
 mod tui;
 use color_eyre::Result;
